@@ -1,12 +1,5 @@
 const knex = require('../db/knex');
 
-/**
- * Transaction Repository - Knex Version
- *
- * Handles all transaction-related database operations using Knex query builder
- * Works with both SQLite and PostgreSQL without code changes
- */
-
 class TransactionRepository {
   /**
    * Find transaction by ID with merchant information

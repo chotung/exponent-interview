@@ -1,12 +1,5 @@
 const knex = require('../db/knex');
 
-/**
- * Account Repository - Knex Version
- *
- * Handles all account-related database operations using Knex query builder
- * Works with both SQLite and PostgreSQL without code changes
- */
-
 class AccountRepository {
   /**
    * Find account by ID with computed available credit
