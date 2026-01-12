@@ -32,6 +32,10 @@ function initializeKnex() {
           conn.pragma('foreign_keys = ON');
           cb();
         }
+      },
+      migrations: {
+        directory: './src/db/migrations',
+        tableName: 'knex_migrations'
       }
     });
 
@@ -52,6 +56,10 @@ function initializeKnex() {
       pool: {
         min: 2,
         max: config.postgres.max
+      },
+      migrations: {
+        directory: './src/db/migrations',
+        tableName: 'knex_migrations'
       }
     });
 

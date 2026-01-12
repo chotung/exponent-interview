@@ -1,4 +1,6 @@
 require('dotenv').config();
+require('./cron/statement.cron');
+
 const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');

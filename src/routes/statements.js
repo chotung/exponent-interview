@@ -48,13 +48,10 @@ router.post('/generate', async (req, res) => {
  */
 router.get('/account/:accountId', async (req, res) => {
   try {
-    const statements = await statementService.getStatementsForAccount(req.params.accountId);
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+    const statements = await statementService.getStatementsForAccount(req.params.accountId, limit);
 
-    res.json({
-      account_id: req.params.accountId,
-      count: statements.length,
-      statements
-    });
+    res.json(statements);
 
   } catch (error) {
     console.error('Error fetching statements:', error);

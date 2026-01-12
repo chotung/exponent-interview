@@ -239,7 +239,7 @@ Create transaction: { type: 'interest', amount: interest }
 - ✅ Minimum payment calculation
 - ✅ Statement retrieval APIs
 - ✅ Payment due date calculation
-- ❌ Automated monthly generation (cron)
+- ✅ Automated monthly generation (cron)
 - ❌ Statement email delivery
 - ❌ PDF statement generation
 - ❌ Promotional credits

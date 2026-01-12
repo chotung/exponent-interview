@@ -41,14 +41,21 @@ router.post('/transactions', async (req, res) => {
 
     // Return simple approved/declined response as per spec
     const statusCode = result.approved ? 200 : 200; // Always 200, just change approved flag
-    res.status(statusCode).json({
+    const response = {
       approved: result.approved
-    });
+    };
 
-    // Log for debugging (not sent to client)
-    if (!result.approved) {
-      console.log(`Decline reason: ${result.reason}`);
+    // Include transaction details if approved
+    if (result.approved && result.transaction) {
+      response.transaction = result.transaction;
     }
+
+    // Include reason if declined
+    if (!result.approved && result.reason) {
+      response.reason = result.reason;
+    }
+
+    res.status(statusCode).json(response);
 
   } catch (error) {
     console.error('Error processing webhook:', error);
@@ -89,11 +96,21 @@ router.post('/settlements', async (req, res) => {
     // Settle transaction
     const result = await settlementService.settleTransaction(settlementData);
 
-    const statusCode = result.settled ? 200 : 400;
-    res.status(statusCode).json({
-      settled: result.settled,
-      reason: result.reason
-    });
+    const response = {
+      settled: result.settled
+    };
+
+    // Include transaction if settled successfully
+    if (result.settled && result.transaction) {
+      response.transaction = result.transaction;
+    }
+
+    // Include reason if not settled
+    if (!result.settled && result.reason) {
+      response.reason = result.reason;
+    }
+
+    res.status(200).json(response);
 
   } catch (error) {
     console.error('Error processing settlement:', error);
