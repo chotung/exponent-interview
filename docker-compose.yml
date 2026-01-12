@@ -1,0 +1,96 @@
+# Docker Compose for local development
+# Run with: docker-compose up
+#
+# This sets up:
+# - Node.js application
+# - PostgreSQL database
+# - Volumes for data persistence
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: credit-card-db
+    environment:
+      POSTGRES_DB: credit_card_platform
+      POSTGRES_USER: credit_card_app
+      POSTGRES_PASSWORD: devpassword123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U credit_card_app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - credit-card-network
+
+  # Node.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: credit-card-app
+    ports:
+      - "3000:3000"
+    environment:
+      # Application
+      NODE_ENV: development
+      PORT: 3000
+
+      # Database - PostgreSQL
+      DATABASE_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: credit_card_platform
+      DB_USER: credit_card_app
+      DB_PASSWORD: devpassword123
+      DB_POOL_MAX: 20
+      DB_SSL: "false"
+
+      # For SQLite development (comment out postgres env vars above):
+      # DATABASE_TYPE: sqlite
+      # SQLITE_DB_PATH: /app/data/credit_card.db
+    volumes:
+      # Mount source code for hot reload in development
+      - ./src:/app/src
+      # SQLite data persistence (if using SQLite)
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit-card-network
+    command: ["dumb-init", "--", "node", "src/server.js"]
+
+  # Optional: pgAdmin for database management
+  # Access at http://localhost:5050
+  # Login: admin@admin.com / admin
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: credit-card-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - credit-card-network
+    profiles:
+      - tools  # Only start with: docker-compose --profile tools up
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  credit-card-network:
+    driver: bridge

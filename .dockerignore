@@ -1,0 +1,41 @@
+# Ignore node modules (will be installed in container)
+node_modules
+npm-debug.log
+
+# Ignore local database files
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore environment files (will be provided via k8s secrets)
+.env
+.env.local
+.env.production
+
+# Ignore tests
+test/
+*.test.js
+
+# Ignore docs
+README.md
+docs/
+
+# Ignore k8s and docker files
+Dockerfile
+docker-compose.yml
+k8s/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db

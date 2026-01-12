@@ -1,0 +1,9 @@
+# Kubernetes Namespace
+# Creates isolated environment for the credit card platform
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: credit-card-platform
+  labels:
+    name: credit-card-platform
+    env: production

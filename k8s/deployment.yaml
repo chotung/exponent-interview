@@ -1,0 +1,103 @@
+# Kubernetes Deployment
+# Manages the application pods with rolling updates and health checks
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-card-platform
+  namespace: credit-card-platform
+  labels:
+    app: credit-card-platform
+spec:
+  # Number of replicas for high availability
+  replicas: 3
+
+  # Rolling update strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Allow 1 extra pod during update
+      maxUnavailable: 0  # Keep all pods available during update
+
+  selector:
+    matchLabels:
+      app: credit-card-platform
+
+  template:
+    metadata:
+      labels:
+        app: credit-card-platform
+      annotations:
+        # Prometheus scraping (if using Prometheus for metrics)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      # Use non-root user for security (defined in Dockerfile)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      containers:
+      - name: credit-card-platform
+        # Image from ECR (AWS Elastic Container Registry)
+        # Replace with your ECR repository URL
+        image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/credit-card-platform:latest
+        imagePullPolicy: Always
+
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: credit-card-platform-config
+        - secretRef:
+            name: credit-card-platform-secret
+
+        # Resource requests and limits
+        # Adjust based on actual usage
+        resources:
+          requests:
+            cpu: 250m       # 0.25 CPU cores
+            memory: 256Mi   # 256 MB RAM
+          limits:
+            cpu: 1000m      # 1 CPU core max
+            memory: 512Mi   # 512 MB RAM max
+
+        # Liveness probe - restart if unhealthy
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # Readiness probe - remove from service if not ready
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+
+      # Graceful termination period
+      terminationGracePeriodSeconds: 30
+
+      # Image pull secrets (for private ECR)
+      # Create with: kubectl create secret docker-registry ecr-secret --docker-server=... --docker-username=AWS --docker-password=$(aws ecr get-login-password)
+      imagePullSecrets:
+      - name: ecr-secret

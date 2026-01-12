@@ -1,0 +1,26 @@
+# ConfigMap for non-sensitive configuration
+# Stores environment-specific settings
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-card-platform-config
+  namespace: credit-card-platform
+data:
+  # Application configuration
+  NODE_ENV: "production"
+  PORT: "3000"
+
+  # Database type - change to 'postgres' for production
+  DATABASE_TYPE: "postgres"
+
+  # PostgreSQL connection (non-sensitive parts)
+  # Sensitive data (password) goes in Secret
+  DB_HOST: "postgres-service.credit-card-platform.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "credit_card_platform"
+  DB_USER: "credit_card_app"
+  DB_POOL_MAX: "20"
+  DB_SSL: "true"
+
+  # For AWS RDS, use the RDS endpoint:
+  # DB_HOST: "your-rds-instance.abc123.us-east-1.rds.amazonaws.com"

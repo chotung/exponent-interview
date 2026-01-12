@@ -1,0 +1,74 @@
+# PostgreSQL StatefulSet
+# For development/testing in Kubernetes
+#
+# IMPORTANT: For production on AWS, use Amazon RDS for PostgreSQL instead
+# This is just for demonstration purposes
+#
+# For AWS RDS:
+# 1. Create RDS PostgreSQL instance in AWS Console
+# 2. Update DB_HOST in configmap.yaml with RDS endpoint
+# 3. Store RDS password in AWS Secrets Manager
+# 4. Use External Secrets Operator to sync to k8s secret
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: credit-card-platform
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  clusterIP: None  # Headless service for StatefulSet
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: credit-card-platform
+spec:
+  serviceName: postgres-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: credit_card_platform
+        - name: POSTGRES_USER
+          value: credit_card_app
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: credit-card-platform-secret
+              key: DB_PASSWORD
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: gp2  # AWS EBS storage class
+      resources:
+        requests:
+          storage: 10Gi
