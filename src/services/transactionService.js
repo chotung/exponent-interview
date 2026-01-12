@@ -3,14 +3,6 @@ const accountRepository = require('../repositories/accountRepository');
 const transactionRepository = require('../repositories/transactionRepository');
 const { v4: uuidv4 } = require('uuid');
 
-/**
- * Transaction Service - Updated for Knex (async/await)
- *
- * Contains business logic for transaction authorization
- * Implements the authorization flow from the README
- *
- * All repository calls are now async, so we use async/await
- */
 
 class TransactionService {
   /**
