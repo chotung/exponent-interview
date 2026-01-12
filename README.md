@@ -205,6 +205,14 @@ Create transaction: { type: 'interest', amount: interest }
 ---
 
 ## Complete Feature Checklist
+> Per block there will require frontend to allow users to see
+
+## Out of scope but important
+- ❌ Sign in/Sign out 
+- ❌ Handling user sessions
+- ❌ Mobile considerations
+- ❌ Frontend framework (how it looks and actual components)
+- ❌ User Experience 
 
 ### Authorization & Transaction Processing
 - ✅ Real-time authorization webhook
