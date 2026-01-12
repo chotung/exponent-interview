@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const transactionService = require('../services/transactionService');
+const settlementService = require('../services/settlementService');
 
 /**
- * Transaction webhook endpoint
+ * Transaction authorization webhook endpoint
  *
  * Receives transaction authorization requests
  * POST /webhooks/transactions
@@ -53,6 +54,51 @@ router.post('/transactions', async (req, res) => {
     console.error('Error processing webhook:', error);
     res.status(500).json({
       approved: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Transaction settlement webhook endpoint
+ *
+ * Receives settlement requests to finalize transactions
+ * POST /webhooks/settlements
+ *
+ * Request body:
+ * {
+ *   "transaction_id": "transaction_123",
+ *   "final_amount": 85.00  // Optional: if different from authorized amount
+ * }
+ *
+ * Response:
+ * { "settled": true } or { "settled": false, "reason": "..." }
+ */
+router.post('/settlements', async (req, res) => {
+  try {
+    const settlementData = req.body;
+
+    // Validate required fields
+    if (!settlementData.transaction_id) {
+      return res.status(400).json({
+        settled: false,
+        error: 'Missing required field: transaction_id'
+      });
+    }
+
+    // Settle transaction
+    const result = await settlementService.settleTransaction(settlementData);
+
+    const statusCode = result.settled ? 200 : 400;
+    res.status(statusCode).json({
+      settled: result.settled,
+      reason: result.reason
+    });
+
+  } catch (error) {
+    console.error('Error processing settlement:', error);
+    res.status(500).json({
+      settled: false,
       error: 'Internal server error'
     });
   }

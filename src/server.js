@@ -7,6 +7,8 @@ const knex = require('./db/knex');
 // Import routes
 const webhookRoutes = require('./routes/webhooks');
 const accountRoutes = require('./routes/accounts');
+const paymentRoutes = require('./routes/payments');
+const statementRoutes = require('./routes/statements');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -61,6 +63,8 @@ app.get('/ready', async (_req, res) => {
 // ============================================================================
 app.use('/webhooks', webhookRoutes);
 app.use('/accounts', accountRoutes);
+app.use('/payments', paymentRoutes);
+app.use('/statements', statementRoutes);
 
 // ============================================================================
 // Error Handlers
@@ -111,6 +115,8 @@ async function startServer() {
       console.log('');
       console.log('Endpoints:');
       console.log(`  POST http://localhost:${PORT}/webhooks/transactions`);
+      console.log(`  POST http://localhost:${PORT}/webhooks/settlements`);
+      console.log(`  POST http://localhost:${PORT}/payments`);
       console.log(`  GET  http://localhost:${PORT}/accounts/:accountId`);
       console.log(`  GET  http://localhost:${PORT}/health`);
       console.log(`  GET  http://localhost:${PORT}/ready`);
