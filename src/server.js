@@ -67,7 +67,7 @@ app.get('/ready', (req, res) => {
  * Response:
  * { "approved": true } or { "approved": false }
  */
-app.post('/webhooks/transactions', (req, res) => {
+app.post('/webhooks/transactions', async (req, res) => {
   try {
     const webhookData = req.body;
 
@@ -79,8 +79,8 @@ app.post('/webhooks/transactions', (req, res) => {
       });
     }
 
-    // Authorize transaction
-    const result = transactionService.authorizeTransaction(webhookData);
+    // Authorize transaction (now async)
+    const result = await transactionService.authorizeTransaction(webhookData);
 
     // Return simple approved/declined response as per spec
     const statusCode = result.approved ? 200 : 200; // Always 200, just change approved flag
@@ -106,10 +106,10 @@ app.post('/webhooks/transactions', (req, res) => {
  * Get account details (for testing/debugging)
  * GET /accounts/:accountId
  */
-app.get('/accounts/:accountId', (req, res) => {
+app.get('/accounts/:accountId', async (req, res) => {
   try {
     const accountRepository = require('./repositories/accountRepository');
-    const account = accountRepository.findById(req.params.accountId);
+    const account = await accountRepository.findById(req.params.accountId);
 
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
@@ -126,11 +126,11 @@ app.get('/accounts/:accountId', (req, res) => {
  * Get account transactions (for testing/debugging)
  * GET /accounts/:accountId/transactions
  */
-app.get('/accounts/:accountId/transactions', (req, res) => {
+app.get('/accounts/:accountId/transactions', async (req, res) => {
   try {
     const transactionRepository = require('./repositories/transactionRepository');
     const limit = parseInt(req.query.limit || '50');
-    const transactions = transactionRepository.findByAccountId(req.params.accountId, limit);
+    const transactions = await transactionRepository.findByAccountId(req.params.accountId, limit);
 
     res.json({
       account_id: req.params.accountId,

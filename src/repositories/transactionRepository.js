@@ -1,80 +1,65 @@
-const db = require('../db/connection');
+const knex = require('../db/knex');
 
 /**
- * Transaction Repository
+ * Transaction Repository - Knex Version
  *
- * Handles all transaction-related database operations
- * Works with both SQLite and PostgreSQL
+ * Handles all transaction-related database operations using Knex query builder
+ * Works with both SQLite and PostgreSQL without code changes
  */
 
 class TransactionRepository {
   /**
-   * Find transaction by ID
+   * Find transaction by ID with merchant information
    * @param {string} transactionId
-   * @returns {Object|null} Transaction object or null if not found
+   * @returns {Promise<Object|null>} Transaction object or null if not found
    */
-  findById(transactionId) {
-    const sql = `
-      SELECT t.*, m.name as merchant_name_full
-      FROM transactions t
-      LEFT JOIN merchants m ON t.merchant_id = m.id
-      WHERE t.id = ?
-    `;
-
-    return db.get(sql, [transactionId]);
+  async findById(transactionId) {
+    return knex('transactions as t')
+      .select('t.*', 'm.name as merchant_name_full')
+      .leftJoin('merchants as m', 't.merchant_id', 'm.id')
+      .where('t.id', transactionId)
+      .first();
   }
 
   /**
    * Find all transactions for an account
    * @param {string} accountId
    * @param {number} limit
-   * @returns {Array} Array of transaction objects
+   * @returns {Promise<Array>} Array of transaction objects
    */
-  findByAccountId(accountId, limit = 100) {
-    const sql = `
-      SELECT * FROM transactions
-      WHERE account_id = ?
-      ORDER BY created_at DESC
-      LIMIT ?
-    `;
-
-    return db.query(sql, [accountId, limit]);
+  async findByAccountId(accountId, limit = 100) {
+    return knex('transactions')
+      .where({ account_id: accountId })
+      .orderBy('created_at', 'desc')
+      .limit(limit);
   }
 
   /**
    * Create a new transaction
    * @param {Object} transactionData
-   * @returns {Object} Created transaction
+   * @returns {Promise<Object>} Created transaction
    */
-  create(transactionData) {
-    const sql = `
-      INSERT INTO transactions (
-        id, card_id, account_id, merchant_id, amount, currency,
-        transaction_type, status, previous_balance, new_balance,
-        authorization_code, decline_reason, merchant_category_code,
-        merchant_name, merchant_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+  async create(transactionData) {
+    await knex('transactions').insert({
+      id: transactionData.id,
+      card_id: transactionData.card_id,
+      account_id: transactionData.account_id,
+      merchant_id: transactionData.merchant_id || null,
+      amount: transactionData.amount,
+      currency: transactionData.currency || 'usd',
+      transaction_type: transactionData.transaction_type || 'purchase',
+      status: transactionData.status || 'pending',
+      previous_balance: transactionData.previous_balance,
+      new_balance: transactionData.new_balance,
+      authorization_code: transactionData.authorization_code || null,
+      decline_reason: transactionData.decline_reason || null,
+      merchant_category_code: transactionData.merchant_category_code || null,
+      merchant_name: transactionData.merchant_name || null,
+      merchant_address: transactionData.merchant_address
+        ? JSON.stringify(transactionData.merchant_address)
+        : null
+    });
 
-    const params = [
-      transactionData.id,
-      transactionData.card_id,
-      transactionData.account_id,
-      transactionData.merchant_id || null,
-      transactionData.amount,
-      transactionData.currency || 'usd',
-      transactionData.transaction_type || 'purchase',
-      transactionData.status || 'pending',
-      transactionData.previous_balance,
-      transactionData.new_balance,
-      transactionData.authorization_code || null,
-      transactionData.decline_reason || null,
-      transactionData.merchant_category_code || null,
-      transactionData.merchant_name || null,
-      transactionData.merchant_address ? JSON.stringify(transactionData.merchant_address) : null
-    ];
-
-    db.run(sql, params);
     return this.findById(transactionData.id);
   }
 
@@ -82,18 +67,23 @@ class TransactionRepository {
    * Update transaction status
    * @param {string} transactionId
    * @param {string} status - pending, posted, declined, reversed
-   * @returns {Object} Updated transaction
+   * @returns {Promise<Object>} Updated transaction
    */
-  updateStatus(transactionId, status) {
-    const sql = `
-      UPDATE transactions
-      SET status = ?,
-          posted_at = CASE WHEN ? = 'posted' THEN CURRENT_TIMESTAMP ELSE posted_at END,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `;
+  async updateStatus(transactionId, status) {
+    const updateData = {
+      status: status,
+      updated_at: knex.fn.now()
+    };
 
-    db.run(sql, [status, status, transactionId]);
+    // Set posted_at timestamp if status is 'posted'
+    if (status === 'posted') {
+      updateData.posted_at = knex.fn.now();
+    }
+
+    await knex('transactions')
+      .where({ id: transactionId })
+      .update(updateData);
+
     return this.findById(transactionId);
   }
 
@@ -101,31 +91,45 @@ class TransactionRepository {
    * Get total spending by merchant category
    * @param {string} accountId
    * @param {number} days - Number of days to look back
-   * @returns {Array} Array of {category, total}
+   * @returns {Promise<Array>} Array of {merchant_category_code, total}
    */
-  getSpendingByCategory(accountId, days = 30) {
-    const sql = `
-      SELECT merchant_category_code, SUM(amount) as total
-      FROM transactions
-      WHERE account_id = ?
-        AND status = 'posted'
-        AND transaction_type = 'purchase'
-        AND created_at >= datetime('now', '-' || ? || ' days')
-      GROUP BY merchant_category_code
-      ORDER BY total DESC
-    `;
+  async getSpendingByCategory(accountId, days = 30) {
+    // Use raw SQL for date functions (different in SQLite vs PostgreSQL)
+    // SQLite: datetime('now', '-30 days')
+    // PostgreSQL: NOW() - INTERVAL '30 days'
+    const databaseType = process.env.DATABASE_TYPE || 'sqlite';
 
-    return db.query(sql, [accountId, days]);
+    if (databaseType === 'sqlite') {
+      return knex('transactions')
+        .select('merchant_category_code')
+        .sum('amount as total')
+        .where({ account_id: accountId, status: 'posted', transaction_type: 'purchase' })
+        .whereRaw(`created_at >= datetime('now', '-' || ? || ' days')`, [days])
+        .groupBy('merchant_category_code')
+        .orderBy('total', 'desc');
+    } else {
+      // PostgreSQL version
+      return knex('transactions')
+        .select('merchant_category_code')
+        .sum('amount as total')
+        .where({ account_id: accountId, status: 'posted', transaction_type: 'purchase' })
+        .whereRaw(`created_at >= NOW() - INTERVAL '${days} days'`)
+        .groupBy('merchant_category_code')
+        .orderBy('total', 'desc');
+    }
   }
 
   /**
    * Check if transaction ID already exists (prevent duplicates)
    * @param {string} transactionId
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  exists(transactionId) {
-    const sql = `SELECT COUNT(*) as count FROM transactions WHERE id = ?`;
-    const result = db.get(sql, [transactionId]);
+  async exists(transactionId) {
+    const result = await knex('transactions')
+      .where({ id: transactionId })
+      .count('* as count')
+      .first();
+
     return result.count > 0;
   }
 }

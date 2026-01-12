@@ -4,26 +4,29 @@ const transactionRepository = require('../repositories/transactionRepository');
 const { v4: uuidv4 } = require('uuid');
 
 /**
- * Transaction Service
+ * Transaction Service - Updated for Knex (async/await)
  *
  * Contains business logic for transaction authorization
  * Implements the authorization flow from the README
+ *
+ * All repository calls are now async, so we use async/await
  */
 
 class TransactionService {
   /**
    * Authorize a transaction from webhook
    * @param {Object} webhookData - { id, card_id, amount, currency, merchant_data }
-   * @returns {Object} { approved: boolean, reason?: string, transaction?: Object }
+   * @returns {Promise<Object>} { approved: boolean, reason?: string, transaction?: Object }
    */
-  authorizeTransaction(webhookData) {
+  async authorizeTransaction(webhookData) {
     try {
       const { id, card_id, amount, currency, merchant_data } = webhookData;
 
       // 1. Check for duplicate transaction (idempotency)
-      if (transactionRepository.exists(id)) {
+      const isDuplicate = await transactionRepository.exists(id);
+      if (isDuplicate) {
         console.log(`Transaction ${id} already exists. Returning previous result.`);
-        const existingTxn = transactionRepository.findById(id);
+        const existingTxn = await transactionRepository.findById(id);
         return {
           approved: existingTxn.status === 'pending' || existingTxn.status === 'posted',
           transaction: existingTxn
@@ -31,7 +34,7 @@ class TransactionService {
       }
 
       // 2. Validate card exists and is active
-      const card = cardRepository.findById(card_id);
+      const card = await cardRepository.findById(card_id);
       if (!card) {
         return this._declineTransaction(webhookData, null, 'Card not found');
       }
@@ -41,7 +44,7 @@ class TransactionService {
       }
 
       // 3. Check account status
-      const account = accountRepository.findById(card.account_id);
+      const account = await accountRepository.findById(card.account_id);
       if (!account || account.account_status !== 'active') {
         return this._declineTransaction(webhookData, card, 'Account not active');
       }
@@ -71,7 +74,7 @@ class TransactionService {
       const newBalance = previousBalance + amountInDollars;
 
       // Create transaction record
-      const transaction = transactionRepository.create({
+      const transaction = await transactionRepository.create({
         id,
         card_id,
         account_id: account.id,
@@ -88,7 +91,7 @@ class TransactionService {
       });
 
       // Update account balance
-      accountRepository.updateBalance(account.id, newBalance);
+      await accountRepository.updateBalance(account.id, newBalance);
 
       console.log(`✓ Transaction ${id} approved: $${amountInDollars.toFixed(2)} - New balance: $${newBalance.toFixed(2)}`);
 
@@ -109,13 +112,13 @@ class TransactionService {
   /**
    * Private: Decline a transaction and record it
    */
-  _declineTransaction(webhookData, card, reason) {
+  async _declineTransaction(webhookData, card, reason) {
     console.log(`✗ Transaction ${webhookData.id} declined: ${reason}`);
 
     // Still create a transaction record for audit trail
     if (card) {
-      const account = accountRepository.findById(card.account_id);
-      transactionRepository.create({
+      const account = await accountRepository.findById(card.account_id);
+      await transactionRepository.create({
         id: webhookData.id,
         card_id: webhookData.card_id,
         account_id: account.id,
@@ -148,10 +151,10 @@ class TransactionService {
    * Process a payment transaction
    * @param {string} accountId
    * @param {number} amount
-   * @returns {Object} Created transaction
+   * @returns {Promise<Object>} Created transaction
    */
-  processPayment(accountId, amount) {
-    const account = accountRepository.findById(accountId);
+  async processPayment(accountId, amount) {
+    const account = await accountRepository.findById(accountId);
     if (!account) {
       throw new Error('Account not found');
     }
@@ -159,7 +162,7 @@ class TransactionService {
     const previousBalance = account.current_balance;
     const newBalance = Math.max(0, previousBalance - amount);
 
-    const transaction = transactionRepository.create({
+    const transaction = await transactionRepository.create({
       id: `payment_${uuidv4()}`,
       card_id: null, // Payments aren't tied to a specific card
       account_id: accountId,
@@ -171,7 +174,7 @@ class TransactionService {
       new_balance: newBalance
     });
 
-    accountRepository.updateBalance(accountId, newBalance);
+    await accountRepository.updateBalance(accountId, newBalance);
 
     return transaction;
   }

@@ -1,70 +1,77 @@
-const db = require('../db/connection');
+const knex = require('../db/knex');
 
 /**
- * Card Repository
+ * Card Repository - Knex Version
  *
- * Handles all card-related database operations
- * Works with both SQLite and PostgreSQL
+ * Handles all card-related database operations using Knex query builder
+ *
+ * Benefits of Knex:
+ * - No more ? vs $1 parameter placeholder issues
+ * - Chainable, readable queries
+ * - Works with both SQLite and PostgreSQL without changes
+ * - Easy escape hatch to raw SQL when needed
+ *
+ * Migration path:
+ * If you want to remove Knex later, just use knex.raw() for raw SQL queries
  */
 
 class CardRepository {
   /**
-   * Find card by ID
+   * Find card by ID with account information
    * @param {string} cardId
-   * @returns {Object|null} Card object or null if not found
+   * @returns {Promise<Object|null>} Card object or null if not found
    */
-  findById(cardId) {
-    const sql = `
-      SELECT c.*, a.credit_limit, a.current_balance, a.status as account_status
-      FROM cards c
-      JOIN accounts a ON c.account_id = a.id
-      WHERE c.id = ?
-    `;
+  async findById(cardId) {
+    // Knex query builder - much cleaner than raw SQL
+    return knex('cards as c')
+      .select(
+        'c.*',
+        'a.credit_limit',
+        'a.current_balance',
+        'a.status as account_status'
+      )
+      .join('accounts as a', 'c.account_id', 'a.id')
+      .where('c.id', cardId)
+      .first(); // Returns single row or undefined
 
-    // Note: For PostgreSQL, change ? to $1, $2, etc.
-    return db.get(sql, [cardId]);
+    // Alternative: Drop down to raw SQL if needed (easy escape hatch)
+    // return knex.raw(`
+    //   SELECT c.*, a.credit_limit, a.current_balance, a.status as account_status
+    //   FROM cards c
+    //   JOIN accounts a ON c.account_id = a.id
+    //   WHERE c.id = ?
+    // `, [cardId]).then(result => result[0]);
   }
 
   /**
    * Find all cards for an account
    * @param {string} accountId
-   * @returns {Array} Array of card objects
+   * @returns {Promise<Array>} Array of card objects
    */
-  findByAccountId(accountId) {
-    const sql = `
-      SELECT * FROM cards
-      WHERE account_id = ?
-      ORDER BY created_at DESC
-    `;
-
-    return db.query(sql, [accountId]);
+  async findByAccountId(accountId) {
+    return knex('cards')
+      .where({ account_id: accountId })
+      .orderBy('created_at', 'desc');
   }
 
   /**
    * Create a new card
    * @param {Object} cardData
-   * @returns {Object} Created card
+   * @returns {Promise<Object>} Created card
    */
-  create(cardData) {
-    const sql = `
-      INSERT INTO cards (
-        id, account_id, card_number_last_four, card_hash,
-        expiry_month, expiry_year, card_type, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+  async create(cardData) {
+    // Knex automatically handles INSERT and returns the created record
+    await knex('cards').insert({
+      id: cardData.id,
+      account_id: cardData.account_id,
+      card_number_last_four: cardData.card_number_last_four,
+      card_hash: cardData.card_hash,
+      expiry_month: cardData.expiry_month,
+      expiry_year: cardData.expiry_year,
+      card_type: cardData.card_type || 'physical',
+      status: cardData.status || 'active'
+    });
 
-    const params = [
-      cardData.id,
-      cardData.account_id,
-      cardData.card_number_last_four,
-      cardData.card_hash,
-      cardData.expiry_month,
-      cardData.expiry_year,
-      cardData.card_type || 'physical',
-      cardData.status || 'active'
-    ];
-
-    db.run(sql, params);
     return this.findById(cardData.id);
   }
 
@@ -72,17 +79,54 @@ class CardRepository {
    * Update card status
    * @param {string} cardId
    * @param {string} status - active, frozen, lost, stolen, closed
-   * @returns {Object} Updated card
+   * @returns {Promise<Object>} Updated card
    */
-  updateStatus(cardId, status) {
-    const sql = `
-      UPDATE cards
-      SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `;
+  async updateStatus(cardId, status) {
+    await knex('cards')
+      .where({ id: cardId })
+      .update({
+        status: status,
+        updated_at: knex.fn.now() // Cross-database current timestamp
+      });
 
-    db.run(sql, [status, cardId]);
     return this.findById(cardId);
+  }
+
+  /**
+   * Example: Complex query with raw SQL escape hatch
+   * Shows how easy it is to drop to raw SQL when needed
+   */
+  async findWithComplexCriteria(criteria) {
+    // If query gets complex, just use raw SQL
+    return knex.raw(`
+      SELECT c.*, a.credit_limit,
+        CASE
+          WHEN c.status = 'active' AND a.status = 'active' THEN 'operational'
+          ELSE 'inactive'
+        END as operational_status
+      FROM cards c
+      JOIN accounts a ON c.account_id = a.id
+      WHERE c.status IN (?, ?)
+        AND a.credit_limit > ?
+    `, [criteria.status1, criteria.status2, criteria.minLimit]);
+  }
+
+  /**
+   * Example: Transaction support
+   * Knex makes transactions easy across both databases
+   */
+  async createWithTransaction(cardData, accountUpdate) {
+    return knex.transaction(async (trx) => {
+      // Insert card
+      await trx('cards').insert(cardData);
+
+      // Update account in same transaction
+      await trx('accounts')
+        .where({ id: cardData.account_id })
+        .update(accountUpdate);
+
+      return this.findById(cardData.id);
+    });
   }
 }
 
