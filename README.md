@@ -213,6 +213,7 @@ Create transaction: { type: 'interest', amount: interest }
 - ❌ Mobile considerations
 - ❌ Frontend framework (how it looks and actual components)
 - ❌ User Experience 
+- ❌ CI/CD pipeline (github actions)
 
 ### Authorization & Transaction Processing
 - ✅ Real-time authorization webhook
